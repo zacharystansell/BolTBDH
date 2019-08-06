@@ -1,0 +1,1884 @@
+--- 
+title: "Complex horticultural quality traits in broccoli are illuminated by evaluation of the immortal BolTBDH mapping population."
+author: "ZJS, TNB, MWF, Additional Authors?"
+date: '`r format(Sys.Date(), "%d-%B-%Y")`'
+output:
+  html_document:
+    theme: spacelab
+    highlight: pygments
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    number_sections: true
+---
+
+
+# Preliminaries  
+
+## Abstract 
+
+A publicly available double-haploid B. oleracea biparental mapping population (BolTBDH; Chinese kale x broccoli; N = 175) segregating for 25 horticultural traits was evaluated by applying genotype-by-sequencing, QTL identification, and candidate gene analyses. 
+The physical locations of 51 single and 31 epistatic QTL and their candidate genes were identified within six trait classes: architecture, biomass, bud morphology, leaf morphology, head quality, and phenology. 
+We describe four single QTL explaining a cumulative 67.4% of variance in overall broccoli heading quality including the QTL OQ_9 which contains two adjacent FLC homologs on chromosome 9 (Bo9g173400 and Bo9g173370).
+Two heading quality QTL (OQ_4 and OQ_8) appear to have an epistatic interaction with OQ_9. 
+Additional heading quality QTL for flower bud size and uniformity, crown diameter, uniformity, shape, extension, and compaction are identified. 
+Two phenology hotspots reduce days to flowering by 8.4 and 7.7 days, and maturity by 7.9 days and 7.4 days. 
+The hotspots contain the FLC homologs Bo3g024250 and the FLC homologs identified in OQ_9. 
+Strong candidates for serrated leaf margins BoLMI1 (Bo3g002560), leaf apex shape, BoCCD4 (Bo3g158650), a carotenoid cleavage dioxygenase implicated in flower color, and BoAP2 (Bo1g004960) implicated in the hooked sepal horticultural defect, were also identified.
+
+## Global options
+```{r PRELIM: Global Options}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/zachary/Dropbox/FA/analysis")
+```
+
+
+## Load packages
+
+```{r PRELIM: setup,  include=FALSE, eval=TRUE, echo=FALSE}
+library("qtl")
+library("knitr")
+library("gsheet")
+library("vcd")
+library("Hmisc")
+library("corrplot")
+library("qtl2")
+library("ggpubr")
+library("corrplot")
+library("lme4")
+library("ASMap")
+library("LinkageMapView")
+library("snow")
+library("sommer")
+library("kableExtra")
+library("ape")
+library("leaps")
+library("irr")
+library("relaimpo")  
+#install.packages("/home/zachary/Dropbox/ZacharyStansel/ratervar_1.0.tar.gz",repos=NULL,type="source")
+library(ratervar)
+#BiocManager::install(c("karyoploteR", "IRanges","rtracklayer"))
+```
+
+## Set color schema
+
+```{r PRELIM: Color Scheme, eval=FALSE}
+# Color Scheme for of trial years from http://colorbrewer2.org
+ 
+  colBoth <-"#1b9e77"
+  col17 <- "#d95f02"    
+  col18 <- "#7570b3"
+  colYear <- as.data.frame(
+    cbind(
+    c("y1y2","y1","y2"),
+    c(colBoth,col17,col18))
+    )
+  
+  colnames(colYear) <- c("year","color")
+
+# Color of Parents
+
+  colEB <- "#d95f02"
+  colTO <- "#7570b3"
+
+# Color of trait classes 
+colors <- read.csv("/home/zachary/Dropbox/FA/data/cleaned_data/trait_colors.csv")
+  
+
+```
+
+
+# Load functions
+
+```{r ENV: load functions, eval=FALSE }
+
+source('/home/zachary/Dropbox/FA/analysis/scripts/CLEAN_DATA.R')
+source('/home/zachary/Dropbox/FA/analysis/scripts/READRAW.R')
+
+```
+
+
+# Environmental Conditions
+
+## Pull down weather data
+```{r ENV: grab weather data, eval=FALSE}
+#gsheet to pull down weather data from Google Drive 
+
+w1 <- "/home/zachary/Dropbox/FA/data/raw_data/weatherData/y1_weather.csv"
+w2 <- "/home/zachary/Dropbox/FA/data/raw_data/weatherData/y2_weather.csv"
+
+weather1<- suppressMessages(
+  read.csv(
+    w1,  stringsAsFactors=FALSE, na.strings = c("NA","-"))
+  )
+
+weather2<-suppressMessages(
+  read.csv(
+    w2, stringsAsFactors=FALSE, na.strings = c("NA","-")
+    )
+  )
+
+```
+
+## Convert unit function
+```{r ENV: weather conditions, eval=FALSE}
+#Convert from freedom units:
+
+toCel = function(farenheit){
+  c = (farenheit-32)*(5/9);
+  return(c)
+  }
+
+toMM = function(inch){
+  mm = 25.4*inch; 
+ return(mm)
+ }
+```
+
+## Visualize weather data
+```{r ENV: visualise weather data, eval=FALSE}
+
+# Plot the weather data
+
+dev.off()
+ #pdf("/home/zachary/Dropbox/FA/output/weather/year.pdf", width=8, height=4)
+  png("/home/zachary/Dropbox/FA/output/weather/weather.png", width=8, height=4,  units = "in", res=300)
+  par( mar=c(2,2,.25,2))
+  # Highs
+  plot(
+    weather1$JD, 
+    toCel(weather1$High), 
+    ylim=c(toCel(35),toCel(95)), 
+    col="#ef8a62", 
+    type="l",
+    lty=1,
+    lwd=2,
+    xlab="Julian Date"
+    )
+  # Lows
+  points(
+    weather1$JD, 
+    toCel(weather1$Low),
+    lwd=2, 
+    lty=1,
+    ylab="", 
+    col="#67a9cf", 
+    type="l"
+    )
+  
+ points(
+    weather2$JD, 
+    toCel(weather2$High), 
+    ylim=c(toCel(35),toCel(95)),
+    lwd=2, 
+    lty=3,
+    col="#b2182b",
+    type="l",
+      )
+ 
+ points(
+    weather2$JD, 
+    toCel(weather2$Low),
+    lwd=2,
+    lty=3,
+    ylab="",
+    col="#2166ac", 
+    type="l")
+ 
+ legend(
+    "bottom",
+    bty="n", 
+    legend=c(
+      expression(paste("Temp High [°C] Y"[1])),
+      expression(paste("Temp Low  [°C] Y"[1])),
+      expression(paste("Temp High [°C] Y"[2])),
+      expression(paste("Temp Low  [°C] Y"[2]))
+    ),
+    lty=c(1,1,3,3), 
+    pch=c(NA,NA,NA),
+    cex=1.0, 
+    lwd=2,
+    col=c("#ef8a62","#67a9cf","#b2182b","#2166ac")
+    )
+ 
+ dev.off()
+ 
+ 
+ #b2182b
+#ef8a62
+#fddbc7
+#f7f7f7
+#d1e5f0
+#67a9cf
+#2166ac
+ "#ef8a62","#67a9cf","#b2182b","#2166ac"
+ 
+  
+```
+
+
+
+
+
+
+```{r  ENV: display weather, echo=FALSE}
+knitr::include_graphics("/home/zachary/Dropbox/FA/output/weather/weather.png")
+```
+
+# Cleaning Phenotype Data
+
+## Grabbing the trait classes
+
+```{r CP: traits:, eval=FALSE}
+
+traitsData <-suppressMessages(
+  read.csv("/home/zachary/Dropbox/FA/data/cleaned_data/traitTable/traits.csv", 
+           stringsAsFactors=FALSE, 
+           na.strings = "NA")
+  )
+
+```
+
+```{r CP: defining trait classes:, eval=FALSE}
+# Defining trait classes...  
+architecture  <- traitsData$Trait[traitsData$Class == "architecture"]
+bud_morphology <- traitsData$Trait[traitsData$Class == "bud_morphology"]
+head_quality <- traitsData$Trait[traitsData$Class == "head_quality"]
+leaf_morphology <- traitsData$Trait[traitsData$Class == "leaf_morphology"]
+phenology <- traitsData$Trait[traitsData$Class == "phenology"]
+biomass <- traitsData$Trait[traitsData$Class == "biomass"]
+```
+
+## Pulling down phenotype data
+```{r CP: Getting pheno data, warning=FALSE, eval=TRUE }
+
+FA <- suppressMessages(read.csv(
+  "/home/zachary/Dropbox/FA/data/raw_data/phenotype/all_raw_phenotype.csv",
+  stringsAsFactors = FALSE,
+  na.strings = "NA"
+))
+
+dim(FA)
+
+# Should be 1680 rows 51 col => keep only useful columns
+
+FA <- with(
+    FA,
+    data.frame(
+      Line,
+      Year,
+      DTM	,
+      DTF	,
+      Holding	,
+      Mass,
+      fc.is.white	,
+      LfApx	,
+      LfMar,
+      se.score,
+      ss.score,
+      st.score,
+      st.is.hooked,
+      ss.is.fig	,
+      HdCmpt	,
+      lc.score,
+      Vig	,
+      Lat	,
+      HS,
+      MadeHead	,
+      Brac,
+      HdDia,
+      HdUnif,
+      BdSz	,
+      BdUnif,
+      HE	,
+      OQ
+    )
+  )
+
+```
+
+```{r PC: recode phenotypes}
+
+colnames(FA)
+
+colnames(FA)  <- c("Line","Year","DM","DF","HA","MS","FC","LA","LM","SE","SS","ST","SH","SF","HC","LC","VG","LT","HS","MH","BR","HD","HU","BS","BU","HE","OQ")
+
+```
+
+
+## Formatting of phenotype data
+```{r CP: formatting pheno data, warning=FALSE, eval=FALSE }
+
+# Remove Parents
+EarlyBig <- FA[ FA$Line %in% "earlyBig",]
+TO1000 <- FA[ FA$Line %in% "TO1000",]
+FA <- FA[! FA$Line %in% c("earlyBig","TO1000"),]
+
+# split by year
+FAYear <- split(FA,FA$Year)
+pheno2017<- FAYear$`2017`
+pheno2018<- FAYear$`2018`
+
+# read GBS sample names
+names <- suppressMessages( read.csv("/home/zachary/Dropbox/FA/data/raw_data/GBS_names/gbsNames.csv",
+    stringsAsFactors = FALSE,
+    na.strings = "NA"
+  ))
+
+```
+
+## Aggregating and merging pheno data
+```{r CP: aggregating and merging pheno data, warning=FALSE, eval=FALSE }
+
+# year 1
+p17 <- aggregate(
+    x = pheno2017,
+    by = list(pheno2017$Line),
+    FUN = "mean",
+    na.rm = TRUE,
+    na.action = "na.pass"
+  )
+
+p17 <- merge(names, p17, by.x = "Name", by.y = "Group.1")
+p17 <- p17[, !names(p17) %in% c("Line")]
+
+# year 2
+p18 <-
+  aggregate(
+    x = pheno2018,
+    by = list(pheno2018$Line),
+    FUN = "mean",
+    na.rm = TRUE,
+    na.action = "na.pass"
+  )
+
+p18 <- merge(names,p18,by.x="Name",by.y="Group.1")
+p18 <- p18[,! names(p18) %in% c("Line")]
+
+# both years
+all <-
+  aggregate(
+    x = FA,
+    by = list(FA$Line),
+    FUN = "mean",
+    na.rm = TRUE,
+    na.action = "na.pass"
+  )
+
+all <- merge(names,all,by.x="Name",by.y="Group.1")
+all <- all[,! names(all) %in% c("Line")]
+
+# Parents 
+eb <- aggregate(
+    x = EarlyBig,
+    by = list(EarlyBig$Line),
+    FUN = "mean",
+    na.rm = TRUE,
+    na.action = "na.pass"
+  )[-c(1:3)]
+to <- aggregate(
+    x = TO1000,
+    by = list(TO1000$Line),
+    FUN = "mean",
+    na.rm = TRUE,
+    na.action = "na.pass"
+  )[-c(1:3)]
+
+#assign ID to trial years
+p17 <- p17[,-1]
+colnames(p17)[1]<- "id"
+p18 <- p18[,-1]
+colnames(p18)[1]<- "id"
+all <- all[,-1,]
+colnames(all)[1]<- "id"
+```
+
+
+## Write data 
+```{r CP: writing pheno data, warning=FALSE, eval=FALSE }
+write.csv(p17,"/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/p17.pheno.csv",row.names = FALSE)
+write.csv(p18,"/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/p18.pheno.csv",row.names = FALSE)
+write.csv(all,"/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/all.pheno.csv",row.names = FALSE)
+
+
+# For data ONLY in the ParY1Y2 analysis
+usedInQTL <-read.csv("/home/zachary/Dropbox/FA/data/raw_data/phenotype/onlyLinesUsedInQTL/NAMES_PARY1Y2.csv", header=TRUE)
+selectedPhenoP17 <- p17[p17$id %in% as.matrix(usedInQTL),]
+selectedPhenoP18 <- p18[p18$id %in% as.matrix(usedInQTL),]
+selectedPhenoAll <- all[all$id %in% as.matrix(usedInQTL),]
+
+
+# Make a table of cleaned phenotype summaries
+table <- cbind(
+    sapply(selectedPhenoAll, mean, na.rm=TRUE),
+    sapply(selectedPhenoAll, sd, na.rm=TRUE),     
+    sapply(selectedPhenoP17, mean, na.rm=TRUE),
+    sapply(selectedPhenoP17, sd, na.rm=TRUE),
+    sapply(selectedPhenoP18, mean, na.rm=TRUE),
+    sapply(selectedPhenoP18, sd, na.rm=TRUE))
+    table <- as.data.frame(table[-c(1,2),])
+    table <- cbind(t(rbind(to,eb)), table)
+    colnames(table) <- c("P1","P2","y1y2","sd","y1","sd","y2","sd")
+    write.csv(table,paste('/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/summary_pheno.csv', sep=''))
+```
+```{r CP: show some of the cleaned pheno data, echo=FALSE, eval=TRUE}
+cleanedDat <-read.csv('/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/summary_pheno.csv')
+
+kable(head(cleanedDat[10:13,1:7]), 
+      format = "html", 
+      align='l', 
+      booktabs=T)  %>% 
+  kable_styling(
+    bootstrap_options = c("striped", "hover")
+    )
+```
+
+# Phenotype Analysis
+
+## Correlation plots
+
+```{r PA: corr plot, eval=FALSE}
+# Pairwise correlations between traits:
+cor(
+  selectedPhenoAll$MS, 
+  selectedPhenoAll$VG, 
+  use = "pairwise.complete.obs",
+  method="spearman")
+
+# How are all phenotypic traits correlated with each other, using ALL DATA (2017+2018)  
+allcorr <- selectedPhenoAll[,-c(1,2)]
+
+
+
+# Calc correlations
+allcorr <- cor(allcorr, use = "pairwise.complete.obs", method = "spearman")
+
+# Plot result
+dev.off()
+  par(mar = c(3, 7, 7, 3))
+  #pdf("/home/zachary/Dropbox/FA/output/Correlation/allCorrelationTrans.pdf", width = 10, height = 10 )
+  png("/home/zachary/Dropbox/FA/output/Correlation/allCorrelationTrans.png",
+   width = 10,
+   height = 10,
+   units = "in",
+   res = 300
+  )
+  corrplot(
+    allcorr,
+    type = "lower",
+    order = "original",
+    tl.col = "black",
+    tl.srt = 45,
+    diag = FALSE,
+    bg = "transparent"
+  )
+dev.off()
+
+p17cor <- selectedPhenoP17[,-c(1,2)]
+
+p18cor <- selectedPhenoP18[,-c(1,2)]
+
+# Year to year trait correlation:
+yearCor <- cor(p17cor, p18cor, use = "pairwise.complete.obs", method = "spearman")
+
+# PDF or PNG
+#pdf("/home/zachary/Dropbox/FA/output/Correlation/yearCorrelationTrans.pdf", width = 10, height = 10 )
+png( "/home/zachary/Dropbox/FA/output/Correlation/yearCorrelationTrans.png",
+    width = 10,
+    height = 10,
+    units = "in",
+    res = 300
+  )
+  corrplot(
+    yearCor,
+    type = "upper",
+    order = "original",
+    tl.col = "black",
+    tl.srt = 45,
+    diag = TRUE,
+    bg = "transparent"
+  )
+dev.off()
+
+# vector of trait correlations y1 to y2
+y2yCor <- diag(yearCor)
+newTable <- cbind(table, y2yCor) 
+write.csv(newTable,paste('/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/summary_pheno.csv', sep=''))
+# added data to the table : #/home/zachary/Dropbox/FA/data/cleaned_data/trait_summary.csv
+
+```
+
+
+
+## Broad sense heritability
+```{r PA:  Broad Sense Heritiability, eval=FALSE}
+
+# Keep only useful columns
+FA <- with(FA,
+           data.frame(Line, Year , Rep, Year, DTM	, DTF	, Holding	, Mass,	fc.is.white	, LfApx	, LfMar, se.score, ss.score, st.score, st.is.hooked, ss.is.fig	, HdCmpt	, lc.score,	Vig	, Lat	, HS,	MadeHead	, Brac,	HdDia,	HdUnif,	BdSz	, BdUnif,	HE	, OQ))
+
+# Merge data
+FA <- merge(names,FA,by.x="Name",by.y="Line")
+FA <- FA[ FA$GBS_ID %in%  as.matrix(usedInQTL),]
+FA$Rep <- as.factor(FA$Rep)
+FA$Year <- as.factor(FA$Year)
+
+# Heritability function
+heritability <- function (x) {
+  test <- mmer(
+    x ~ 1,
+    random = ~ GBS_ID + Year + GBS_ID:Year + Rep,
+    rcov = ~ units,
+    data = FA
+  )
+  
+  suma <- summary(test)
+  n.env <- length(levels(FA$Year))
+  print(pin(test, h2 ~ V1 / (V1 + (V3 / n.env) + (V5 / (
+    n.env * 2
+  )))))
+}
+
+# This function dosn't want to loop. I don't know why. 
+heritability(FA$Lat)
+### ...
+heritability(FA$OQ)
+```
+
+## Relative Importance Analysis
+
+See [Use of a Quality Trait Index to Increase the Reliability of Phenotypic Evaluations in Broccoli](https://journals.ashs.org/hortsci/view/journals/hortsci/52/11/article-p1490.xml)  
+
+```{r PA: Relative Importance Analysis, eval=FALSE}
+
+#Calculate relative importance
+out <-
+    raterimp(
+        FA,
+        OQ ~ LT 
+        #+ MH 
+        + MS 
+        + VG 
+        + LA 
+        + LM 
+        + LC 
+        #+ SE 
+        #+ SF 
+        #+ SH
+        #+ SS 
+        #+ ST 
+        + BS 
+        + BU 
+        + BR 
+        + HC 
+        + HD 
+        + HE 
+        + HS 
+        + HU 
+        + DF 
+        + DM,
+        atype = "lmg",
+        byrater = FALSE,
+        b = 1000
+    )
+
+# cleaned data in libreoffice
+
+#pdf("./output/relativeImportance/RIA.pdf", width=8,height = 6)
+png("/home/zachary/Dropbox/FA/output/relativeImportance/RIAtrans.png", width=8,height = 6,units="in",res=300, bg="transparent")
+par(mar = c(3, 2.5, 1.25, 1))
+RIA <- read.csv("/home/zachary/Dropbox/FA/output/relativeImportance/stats.csv")
+bp <- barplot(RIA$r.squared, col=as.character(RIA$color), ylim=c(0,0.30), names.arg=RIA$trait)
+arrows(bp,RIA$upper,bp,RIA$lower, angle=90, code=3,length = 0.05)
+legend(
+  "topright",
+  inset = 0,
+  bty = "n",
+  c("Architecture",
+    "Biomass",
+    "Leaf Morphology",
+    "Bud Morphology",
+    "Head Quality",
+    "Phenology"),
+col = c("#1b9e77",
+  "#d95f02",
+  "#66a61e",
+  "#7570b3",
+  "#e7298a",
+  "#e6ab02"),
+pch = c(15, 15, 15),
+cex = 1.5
+)
+dev.off()
+```
+
+
+# GBS Pipeline
+
+## Preparing GBS data
+[PARKIN v2.0 Genome](https://genomebiology.biomedcentral.com/articles/10.1186/gb-2014-15-6-r77)
+
+This was done on my greyfractal machine.  
+I need to move the data into this path. 
+keyfile: **/home/zachary/FA_GBS/REDO_sept18/FAonly.txt ** *only BolTBDH*  
+*Raw Data Location:* **/home/zachary/FA_GBS**  
+*Parkin Genome:*  **/home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz** 
+
+
+```{bash GBS_PL: uncompress files, eval=FALSE}
+# May need to uncompress files; e.g.
+tar xvfz  /home/zachary/FA_GBS/REDO_sept18/BOLEPAN_reference.tar.gz  
+```
+
+
+## GBSSeqToTagDBPlugin
+```{bash GBS_PL: GBSSeqToTagDBPlugin, eval=FALSE}
+#secure shell zachary@mind.meld 
+ssh 10.144.40.50
+cd /home/zachary/tassel-5-standalone/
+
+./run_pipeline.pl  -Xmx14g -fork1 \
+&& -GBSSeqToTagDBPlugin -e ApeKI -i /home/zachary/FA_GBS  \
+&& -db /home/zachary/FA_GBS/REDO_sept18/PARKIN_REDO.db	\
+&& -k /home/zachary/FA_GBS/REDO_sept18/FAonly.txt \
+&& -kmerLength 64 -minKmerL 10 -mnQS 15 \
+&& -mxKmerNum 50000000 -endPlugin -runfork1
+
+# Output from GBSSeqToTagDBPlugin:
+
+#	Total number of reads in lane=214757912
+#	Total number of good barcoded reads=168722056
+#	Total number of low quality reads=39728476
+#	Timing process (sorting, collapsing, and writing TagCount to file).
+#	Process took 1486057.81757 milliseconds.
+#	tagCntMap size: 11842938
+
+#	Kmers are added from batch 1. Total batch number: 1
+#	Current number: 11842938. Max kmer number: 50000000
+#	0.23685876 of max tag number
+#	Map Tags:11,842,938  Memory:2,981,501,560  TotalDepth:748,629,129  AvgDepthPerTag:63
+
+#	Starting removeTagsWithoutReplication. Current tag number: 11842938
+#	Finished removeTagsWithoutReplication.  tagsRemoved = 9313509. Current tag number: 2529429
+#	Map Tags:2,529,429  Memory:2,032,955,113  TotalDepth:726,503,476  AvgDepthPerTag:287
+
+#	Kmer number is reduced to 2529429
+```
+
+## TagExportToFastqPlugin
+```{bash GBS_PL: TagExportToFastqPlugin, eval=FALSE}
+./run_pipeline.pl -fork1 -TagExportToFastqPlugin \
+&& -db /home/zachary/FA_GBS/REDO_sept18/REDO.db  \
+&& -o /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz\
+&& -c 1 -endPlugin -runfork1
+
+# Output:
+
+#	size of all tags in tag table=816330
+#	size of all tissues in tissue table=0
+#	size of all tags in mappingApproach table=1
+#	size of all taxa in taxa table=216
+#	Closing SQLDB
+#	[pool-1-thread-1] INFO net.maizegenetics.analysis.gbs.v2.TagExportToFastqPlugin - Finished converting binary tag count file to fastq.
+#	Total number of tags written: 816330 (above minCount of 1)
+#	Ouput fastq file: /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz
+```	
+
+## Genome Alignments
+### Index reference genome  
+```{bash GBS_PL: Parkin genome v2.0 -- 137 MB, eval=FALSE}
+bwa index -a bwtsw \
+&& /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz
+  
+bwa aln -t 8 \
+&& /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz \
+&&  /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz \
+&&  > /home/zachary/FA_GBS/REDO_sept18/PARKINtagsForAlign.sai  
+
+bwa samse \
+&& /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz \
+&& /home/zachary/FA_GBS/REDO_sept18/PARKINtagsForAlign.sai \
+&& /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz \
+&& > /home/zachary/FA_GBS/PARKINtagsForAlign.sam   
+
+# Output:  
+
+#	[BWTIncConstructFromPacked] 160 iterations done. 964995638 characters processed.
+#	[bwt_gen] Finished constructing BWT in 166 iterations.
+#	[bwa_index] 284.19 seconds elapse.
+#	[bwa_index] Update BWT... 2.30 sec
+#	[bwa_index] Pack forward-only FASTA... 4.41 sec
+#	[bwa_index] Construct SA from BWT and Occ... 149.29 sec
+#	[main] Version: 0.7.12-r1039
+#	[main] CMD: bwa index -a bwtsw /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz
+#	[main] Real time: 456.467 sec; CPU: 445.132 sec
+	
+#	[bwa_aln_core] 816330 sequences have been processed.
+#	[main] Version: 0.7.12-r1039
+#	[main] CMD: bwa aln -t 8 /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz
+#	[main] Real time: 16.039 sec; CPU: 111.808 sec
+	
+#	[bwa_aln_core] 816330 sequences have been processed.
+#	[main] Version: 0.7.12-r1039
+#	[main] CMD: bwa samse /home/zachary/FA_GBS/REDO_sept18/Brassica_oleracea.v2.1.dna.toplevel.fa.gz /home/zachary/FA_GBS/REDO_sept18/PARKINtagsForAlign.sai /home/zachary/FA_GBS/REDO_sept18/tagsForAlign.fa.gz
+#	[main] Real time: 8.718 sec; CPU: 6.592 sec
+```
+
+## SAMtoGBS plugin...
+```{bash GBS_PL: SAMtoGBS, eval=FALSE}
+./run_pipeline.pl -Xmx14g -fork1 \
+&&  -SAMToGBSdbPlugin -i /home/zachary/FA_GBS/REDO_sept18/PARKINtagsForAlign.sam \
+&& -db /home/zachary/FA_GBS/REDO_sept18/PARKIN_REDO.db -runfork1
+
+# Output
+#	Total number of cut sites: 353414
+#	Number of cut sites with 1 tag: 250488
+#	Number of cut sites with 2 tags: 62505
+#	Number of cut sites with 3 tags: 13019
+#	Number of cut sites with more than 3 tags: 27402
+#	[pool-1-thread-1] INFO net.maizegenetics.analysis.gbs.v2.SAMToGBSdbPlugin - Finished reading SAM file and adding tags to DB.
+#	Total number of tags mapped: 670347 (total mappings 670347)
+#	Tags not mapped: 145983
+#	Tags dropped due to minimum mapq value: 0
+
+```
+
+## DiscoverySNPCallerPluginV2
+```{bash GBS_PL: DiscoverySNPCallerPluginV2, eval=FALSE}
+./run_pipeline.pl  -Xmx15g -fork1 \
+&& -DiscoverySNPCallerPluginV2 -db /home/zachary/FA_GBS/REDO_sept18/PARKIN_REDO.db \
+&&  -deleteOldData true -endPlugin -runfork1
+```
+
+## ProductionSNPCallerPluginV2
+```{bash GBS_PL: ProductionSNPCallerPluginV2, eval=FALSE}
+
+./run_pipeline.pl -Xmx16g -fork1 \
+&&  -ProductionSNPCallerPluginV2 -db /home/zachary/FA_GBS/REDO_sept18/PARKIN_REDO.db \
+&& -e ApeKI -i /home/zachary/FA_GBS -k /home/zachary/FA_GBS/REDO_sept18/FAonly.txt \
+&&  -kmerLength 64 -o /home/zachary/FA_GBS/REDO_sept18/PARKIN.h5 -endPlugin -runfork1
+
+./run_pipeline.pl -fork1 -SNPQualityProfilerPlugin -db /home/zachary/FA_GBS/REDO_sept18/PARKIN_REDO.db -statFile "/home/zachary/FA_GBS/REDO_sept18/outputStats_PARKIN.txt" -deleteOldData true -endPlugin -runfork1
+
+# Total number of SNPs processed with minimum quality score 0 was 263998.*
+```
+
+## Transfer geno data
+```{bash GBS_PL: move data to other computer... , eval=FALSE}
+scp zachary@XXXXXXXXXXXXX:/home/zachary/FA_GBS/REDO_sept18/PAR.h5 /home/zachary/PROJECTS/FA/DATASETS/PAR.h5  
+```
+
+# Cleaning Geno Data
+
+## Cleaning steps
+0. Data location: **/home/zachary/PROJECTS/FA/DATASETS/PARKIN.h5 **
+1. Sort taxa alphabetically & calculate summary statistics    
+2. Clean taxa with over 50% missing data     
+3. Prune lines & remove duplicates:   
+  *  FA109 - seed contamination  
+  *  FA185 - likely hybrid  
+  *  fa002_B  - redundant  
+  *  fa003_B  - redundant      
+  *  fa004_B  - redundant    
+  *  fa005_B  - redundant    
+  *  fa007_B  - redundant    
+4. Write file: **/home/zachary/PROJECTS/FA/DATASETS/PARKIN_236K_205N.hmp.txt **  
+5. Keep sites with > 90% data; e.g. 202*.9 => 181.8 => 182
+6. Keep sites with MAF > 0.05,   
+7. Remove minor SNP states,   
+8. Keep sites on only C1-C9 positions (e.g. discard scaffolds)  
+9. Write file: **/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N.hmp.txt**
+
+*Number of taxa:* 205
+*Number of sites:* 160177
+
+## FSFhap imputation:
+
+**/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_200N.hmp.txt**   
+
+Pedigree File:  
+
+**/home/zachary/PROJECTS/FA/DATASETS/FSFHap.txt**
+
+FSFHap settings: default, except:
+CLUSTER- yes  
+Proportion Heterozygous= 0.04  
+
+Output:  
+**/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF.hmp.txt**  
+
+## Convert to ABH genotype 
+
+Use 'TO1000' and 2 'earlyBig' parents => 7.5 MB file with 17K markers:   
+**/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF_ABH.hmp.txt**
+
+In *Nano*, deleted the second line (chromosomes) using "^K" and saved as:  
+```{bash GC:Nano, eval=FALSE}
+nano /home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF_ABH.hmp.txt
+# Highlight line #2
+^K
+^S /home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF_ABH_clean.hmp.txt
+```
+**/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF_ABH_clean.hmp.txt**  
+
+## Convert file to CSV  
+```{r CG: Convert to csv, eval=FALSE}
+parkin <- read.csv("/home/zachary/PROJECTS/FA/DATASETS/PARKIN_160K_205N_FSF_ABH_clean.hmp.txt", header=T)
+write.csv(parkin, "/home/zachary/PROJECTS/FA/DATASETS/parkin.csv", quote=FALSE, row.names=FALSE) 
+```
+
+# Preliminary GBS Analyses 
+
+## Linkage Disequalibrium
+
+### Prepare files 
+
+1. Make VCF file in *plink*:  **FA/DATASETS/PARKIN_160K_205N_FSF.hmp.txt**  
+2. cd /home/zachary/PROJECTS/FA/DATASETS/plink  
+3. Stripped off leading "C", eg. "C1" => "1"  
+4. Converted to plink 1 binary.  
+
+### LD analysis 
+```{bash Prelim_GBS:  run the LD analysis , eval=FALSE}
+# Run plink
+/home/zachary/bin/plink --vcf \
+&& /home/zachary/PROJECTS/FA/DATASETS/plink/snps.vcf \
+&& --double-id --allow-extra-chr  --make-bed --maf 0.05 \
+&& --out /home/zachary/PROJECTS/FA/DATASETS/plink/snps.plk 
+
+/home/zachary/bin/gcta64 --bfile \
+&& /home/zachary/PROJECTS/FA/DATASETS/plink/snps.plk \
+&& --ld-score-adj --ld-wind 10000 --ld-rsq-cutoff 0.0 \
+&& --out /home/zachary/PROJECTS/FA/DATASETS/plink/LDout.plk
+```
+
+
+```{r  Prelim_GBS:LD analysis, eval=FALSE}
+# Load data
+test <- read.csv("/home/zachary/PROJECTS/FA/DATASETS/plink/LDout.plk.score.ld", sep="")
+chromosomes <- levels(as.factor(test$chr))
+
+# Make test plot
+par(mfcol = c(3, 3))
+for (i in chromosomes) {
+  plot(
+    test$bp[test$chr == i] / 1000000,
+    test$mean_rsq[test$chr == i],
+    main = paste("C0", i, sep = ""),
+    ylim = c(0, 1),
+    xlab = "",
+    ylab = "mean LD R2"
+  )
+}
+```
+
+## PCA
+There's strange behavior in C09. Why  ?
+Turns out that there's ~ 50 markers aligned to the wrong linkage groups.
+
+###  Prepare data  
+```{r Prelim_GBS:   CHROM PCA Data, eval=FALSE}
+# Pull down PCA
+PCA <-
+  suppressMessages(
+    read.csv(
+      "/home/zachary/Dropbox/FA/data/raw_data/PCA/PCA.csv",
+      stringsAsFactors = FALSE,
+      na.strings = "NA"
+    )
+  )
+# Pull down eigenvectors
+Eigen <-
+  suppressMessages(
+    read.csv(
+      "/home/zachary/Dropbox/FA/data/raw_data/PCA/eigenVectors.csv",
+      stringsAsFactors = FALSE,
+      na.strings = "NA"
+    )
+  )
+# Load into globalenv
+attach(PCA)
+```
+###  Assemble PCA components
+```{r Prelim_GBS:CHROM PCA ingredients, eval=FALSE}
+# PCA disaggregated by chromosome..  
+pca1 <- list(
+    PCA$all1,
+    PCA$c1a,
+    PCA$c2a,
+    PCA$c3a,
+    PCA$c4a,
+    PCA$c5a,
+    PCA$c6a,
+    PCA$c7a,
+    PCA$c8a,
+    PCA$c9a
+  )
+pca2 <- list(
+    PCA$all2,
+    PCA$c1b, 
+    PCA$c2b,
+    PCA$c3b,
+    PCA$c4b,
+    PCA$c5b,
+    PCA$c6b,
+    PCA$c7b,
+    PCA$c8b,
+    PCA$c9b
+  )
+names <- list("all", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9")
+plots <- list("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l")
+```
+
+###  Plot PCA 
+```{r Prelim_GBS:   CHROM PCA ingredients, eval=FALSE}
+
+# Visualize results; choose pdf or png
+pdf("/home/zachary/Dropbox/FA/output/PCA/PCA.pdf", width=11,height = 7.10)
+#png( 
+ # "/home/zachary/Dropbox/FA/output/PCA/PCA.png",
+ # width = 11,
+ # height = 7.10,
+ # unit = "in",
+ # res = 300
+#)
+
+# Set plotting params
+par(mfrow = c(3, 4), mar = c(1, 2.25, 1, 0.25))
+# Run loop over chromosomes (n=1 is pooled data)
+  for(i in 1:10) {
+    plot(
+      unlist(pca1[i]),
+      unlist(pca2[i]),
+      col = PCA$color,
+      pch = PCA$pch,
+      cex = PCA$cex,
+      xlim = c(-50, 50),
+      ylim = c(-45, 45),
+      xaxt = 'n',
+      yaxt = 'n',
+      xlab = "",
+      ylab = ""
+    )
+    text(50,
+         45,
+         labels = names[i],
+         cex = 1.1,
+         font = 2)
+    text(0, -44, labels = Eigen$v1[i], cex = 1.1)
+    text(-50,
+         0,
+         labels = Eigen$v2[i],
+         cex = 1.1,
+         srt = 90)
+    text(-50,
+         45,
+         labels = plots[i],
+         font = 2,
+         cex = 1.1)
+  }
+ # barplots of eigenvalues
+   barplot(
+    Eigen$var1, 
+    names.arg = Eigen$label,
+    las = 2,
+    ylab = "% Var Axis 1",
+    ylim = c(0, .25),
+    yaxt = 'n'
+  )
+  axis(2, cex.axis = .8)
+  box()
+  text(0,
+       .24,
+       labels = plots[11],
+       font = 2,
+       cex = 1.1)
+  for (i in 1:10) {
+    text(
+      0.65 + (11.5 - 0.65) * (i - 1) / 9,
+      Eigen$var1[i] + .025, 
+      labels = names[i],
+      cex = 1,
+      srt = 90
+    )
+  }
+  
+  barplot(
+    Eigen$var2,
+    names.arg = Eigen$label,
+    las = 2,
+    ylab = "% Var Axis 2",
+    ylim = c(0, .25),
+    yaxt = 'n'
+  )
+  axis(2, cex.axis = .8, tick = c(0.05, .1, .15, .25))
+  box()
+  text(0,
+       .24,
+       labels = plots[12],
+       font = 2,
+       cex = 1.1)
+  for (i in 1:10) {
+    text(
+      0.65 + (11.5 - 0.65) * (i - 1) / 9,
+      Eigen$var2[i] + .025,
+      labels = names[i],
+      cex = 1,
+      srt = 90
+    )
+  }
+dev.off()
+```
+
+```{r  Prelim_GBS:  display PCA plot, echo=FALSE}
+knitr::include_graphics("/home/zachary/Dropbox/FA/output/PCA/PCA.png")
+```
+
+
+# QTL Preliminaries 
+
+## Clean QTL datasets
+### Read data
+```{r QTL_Prelim: Make DataSets, eval=FALSE}
+#Genotype data:
+ 
+
+#Pheno data:
+y1y2    <- "/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/all.pheno.csv"
+y1      <- "/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/p17.pheno.csv"
+y2      <- "/home/zachary/Dropbox/FA/data/cleaned_data/phenotypes/p18.pheno.csv"
+
+source("scripts/READRAW.R")
+
+# Choose pheno and geno data:
+PARy1y2   <- READRAWDATA(par,y1y2)
+PARy1     <- READRAWDATA(par,y1)
+PARy2     <- READRAWDATA(par,y2)
+```
+
+
+### Clean the geno data
+```{r QTL_Prelim:  Clean the Damn Data, eval=FALSE}
+
+source("scripts/CLEAN_DATA.R")
+#Clean the data...
+CLEAN_DATA(PARy1y2,"py1y2")
+CLEAN_DATA(PARy1,"py1")
+CLEAN_DATA(PARy2,"py2")
+```
+
+writes cleaned csvr files :  
+**/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py1y2.csv**  
+**/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py1.csv**  
+**/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py2.csv**  
+
+## Estimate Genetic Map...
+
+### Preparing genetic map file
+
+*TASSEL*:  "exported site position"  
+*Libreoffice Calc* to format:  
+
+```{r  QTL_Prelim: write as csv, eval=FALSE}
+write.csv(t(colnames(parkin)), "parkin_sites.csv")  
+```
+
+Headers = *marker*, *chr*, *pos*  
+Convert *pos* => *Mbp*  
+Saved as  *.CSV*   
+
+
+```{r QTL_Prelim Estimate Map, eval=FALSE}
+# Cleaned data set:
+PAR <- "/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py1y2.csv"
+
+# Read clean data function
+PAR <- read.cross(
+  format = "csvr",
+  file = PAR,
+  crosstype = "dh",
+  genotypes = c("AA", "BB"),
+  alleles = c("A", "B")
+)
+
+# Estimate Genetic Map
+geneticMapPar <-
+  est.map(PAR, map.function = "kosambi", n.cluster = 8)
+write.csv(geneticMapPar,
+          "/home/zachary/Dropbox/FA/output/genetic_map/gmap.csv")
+# Write the map file
+write.csv(
+  summary(geneticMapPar),
+  "/home/zachary/Dropbox/FA/output/genetic_map/summary_genetic_mapPAR.csv"
+)
+```
+
+```{r QTL_Prelim: segregation distortion, eval=FALSE}
+gtP <- geno.table(PAR)
+gtP <- cbind(gtP, p.adjust(gtP$P.value,  method = "BH"))
+colnames(gtP)[6] <- "p.adj"
+
+png(
+  "/home/zachary/Dropbox/FA/output/segDistortion/seg_compare.png",
+  width = 6,
+  height = 6,
+  units = "in",
+  res = 300
+)
+par(mfrow = c(3, 3), mar = c(2, 2, 1.5, 1))
+
+trans <- rgb(0,
+             0,
+             0,
+             max = 255,
+             alpha = 25,
+             names = "")
+trans1 <- rgb(0,
+              0,
+              0,
+              max = 255,
+              alpha = 0,
+              names = "")
+for (i in 1:9) {
+  dataP <- gtP[gtP$chr == i, ]
+  scaleFactor <- dim(gtP[gtP$chr == i, ])[1]
+  
+  plot(
+    y = dataP$AA / (dataP$AA + dataP$BB),
+    x = 1:scaleFactor,
+    ylim = c(0, 1),
+    col = ifelse(
+      dataP$AA > dataP$BB & dataP$p.adj < 0.05,
+      colEB,
+      ifelse(dataP$AA < dataP$BB & dataP$p.adj < 0.05,
+             colTO,
+             trans)
+    ),
+    xlim = c(0, length(dataP[, 1])),
+    cex = .75,
+    ylab = "",
+    xlab = ""
+  )
+  
+  abline(.5,
+         0,
+         col = "black",
+         lty = 2,
+         lwd = 2)
+  abline(.75,
+         0,
+         col = trans,
+         lty = 3,
+         lwd = 2)
+  abline(.25,
+         0,
+         col = trans,
+         lty = 3,
+         lwd = 2)
+  
+  text(
+    x = length(dataP$chr) * .1,
+    y = 0.9,
+    cex = 1.5,
+    labels = paste("C0", i, sep = "")
+  )
+  ifelse(i == 1,
+         legend(
+           x = "bottomleft",
+           inset = 0,
+           bty = "n",
+           c(expression('P'[1]), expression('P'[2]), "NS"),
+           col = c(colTO, colEB, trans),
+           pch = c(19, 19, 1),
+           cex = 1.25
+         ),
+         "")
+}
+dev.off()
+
+
+
+
+```
+
+```{r QTL_Prelim: plot RF, eval=FALSE}
+#pdf("/home/zachary/Dropbox/FA/output/genetic_map/RF.pdf", height=8, width = 8)
+png(
+  "/home/zachary/Dropbox/FA/output/genetic_map/RF.png",
+  height = 8,
+  width = 8,
+  res = 300,
+  units = "in"
+)
+plotRF(
+  PAR,
+  what = "both",
+  alternate.chrid = FALSE,
+  mark.diagonal = FALSE,
+  main = NULL,
+  xlab = NULL,
+  ylab = NULL,
+  col.scheme = c("viridis")
+)
+dev.off()
+```
+## Simple Linkage map  
+```{r QTL_Prelim:  Linkage Map with LMV, eval=FALSE}
+# lmv.linkage.plot(PAR,outfile = "/home/zachary/Dropbox/FA/Output/LinkageMaps/test1")
+PAR_DIRTY   <- READDATA(par, y1y2)
+
+scaleFac <- 35
+
+#Clean map
+lmv.linkage.plot(
+  PAR,
+  outfile = "/home/zachary/Dropbox/FA/output/genetic_map/LM_clean_data.pdf",
+  cex.lgtitle = 4,
+  denmap = FALSE,
+  dupnbr = TRUE,
+  lgw = 0.4,
+  #ruler=TRUE,
+  pdf.height = 1.5 * scaleFac,
+  pdf.width = 1 * scaleFac,
+  lg.col = trans
+  
+)
+
+```
+
+```{r QTL_Prelim: several summary statistics, eval=FALSE}
+# Crossover events by line:
+mean(countXO(PAR, bychr=FALSE))
+sd(countXO(PAR, bychr=FALSE))
+max(countXO(PAR, bychr=FALSE))
+min(countXO(PAR, bychr=FALSE))
+
+#Count number of markers per crossovers per chromosome:
+max(nmar(PAR)/apply(countXO(PAR, bychr=TRUE),2,mean))
+
+```
+
+
+# QTL Mapping
+
+## Set up QTL parameters:
+```{r QTL:read data: , eval=FALSE}
+# Set number of permutations:
+N_PERMS <- 1000
+# Read and prepare data
+PAR <- "/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py1y2.csv"
+PAR <- read.cross(
+  format = "csvr",
+  file = PAR,
+  crosstype = "dh",
+  genotypes = c("AA", "BB"),
+  alleles = c("A", "B")
+)
+
+
+GENO_SIM_PROB  <- function(DATA, DRAWS, STEP) {
+  # Simulate genotypes
+  PAR <- sim.geno(DATA, n.draws = DRAWS, map.function = "kosambi")
+  # Calculate geno probabilities
+  PAR <- calc.genoprob(
+    PAR,
+    step = STEP,
+    map.function = "kosambi",
+    error.prob = 0.0001,
+    stepwidth = "fixed"
+  )
+}
+
+
+PAR <- GENO_SIM_PROB(PAR, 1000, 1)
+# Define traits
+traits <- colnames(PAR$pheno)[c(-1, -2)]
+```
+
+## 2-D scans
+
+*one dimensional scans are run during the model selection chunk of MQM*
+
+```{r QTL:2-dimensional mapping, eval=FALSE}
+for (i in traits) {
+ # Choose model 
+  model <- ifelse(i == "FC", "binary","normal" )
+  # 2-D scan
+  
+  twoDout <- scantwo(
+    PAR,
+    pheno.col = i,
+    model=model,
+    incl.markers = TRUE,
+    method = "hk",
+    clean.output=TRUE
+  )
+  
+  # Perumations (n.cluster > 4 usually causes a crash)
+  perms <- scantwo(
+    PAR,
+    pheno.col = i,
+    model=model,
+    incl.markers = FALSE,
+    method = "hk",
+    n.perm = N_PERMS,
+    n.cluster = 5,
+    verbose = FALSE,
+    clean.output=TRUE,
+    assumeCondIndep = TRUE
+  )
+  
+  # Calculate penalties for later use
+  penalties <-  calc.penalties(perms)
+  #note::: main=median; heavy=max; light=min
+  write.csv(as.array(summary(penalties)), 
+  file=paste('/home/zachary/Dropbox/FA/output/twoDimensional/penalties/mqm_', i, '.csv', sep = ''), row.names = FALSE ) 
+  
+  # Set thresholds
+  Tf <- summary(perms)[1][[1]][1]
+  Tfv1 <- summary(perms)[2][[1]][1]
+  Ti <- summary(perms)[3][[1]][1]  
+  Ta <- summary(perms)[4][[1]][1]
+  Tav1 <- summary(perms)[5][[1]][1]
+  
+  # Summarize results
+  scan2summary <- summary(twoDout, 
+                       threshold=c(Tf,Tfv1,Ti,Ta,Tav1), 
+                       perms=perms,  
+                       pvalues = TRUE)
+  scan2summary <- as.data.frame(scan2summary)
+  scan2summary <- scan2summary[(scan2summary)[,8] < 0.01,]
+  # Avoid error if no epistatic effect 
+  if(dim(scan2summary)[1] == 0)  {
+    print("No Epistatic Effects")
+  
+    } else {
+      
+  out <- cbind(i, scan2summary)
+
+  # Write as table
+  colnames(out)[1] <- "trait"
+  write.csv(out, file = paste("/home/zachary/Dropbox/FA/output/twoDimensional/scans/",i,".csv",sep=''))
+  }
+}
+
+```
+
+
+```{r QTL: Two dimensional plots, eval=FALSE}
+# I think 2D plot are more clear with a wider stepwidth eg. 10 cm
+
+PAR_PLOT <- "/home/zachary/Dropbox/FA/data/cleaned_data/crossObj/py1y2.csv"
+PAR_PLOT <- read.cross(
+  format = "csvr",
+  file = PAR_PLOT,
+  crosstype = "dh",
+  genotypes = c("AA", "BB"),
+  alleles = c("A", "B")
+)
+# Define traits
+traits <- colnames(PAR_PLOT$pheno)[c(-1, -2)]
+
+# Simulate genotypes
+PAR_PLOT <- sim.geno(PAR_PLOT, n.draws = 1000, map.function = "kosambi")
+
+# Calculate geno probabilities
+# Step is VERY important, btw 
+PAR_PLOT <- calc.genoprob(PAR_PLOT,
+                step = 1,
+                map.function = "kosambi",
+                error.prob=0.0001,
+                stepwidth = "fixed")
+
+for(i in traits) {
+# Choose model 
+  model <- ifelse(i == "FC", "binary","normal" )
+# Scantwo  
+  twoDout <- scantwo(
+    PAR_PLOT,
+    model=model,
+    pheno.col = i,
+    incl.markers = TRUE,
+    method = "hk",
+    clean.output=TRUE
+  )
+# Make individual plots plots; pdf and png
+ 
+  pdf(
+    paste("/home/zachary/Dropbox/FA/output/twoDimensional/figures/pdf/",i,".pdf", sep=""), 
+    height = 7, 
+    width = 7)
+  plot(twoDout,
+       upper ="cond-add",
+       main= i)
+  dev.off()
+  png(
+    paste("/home/zachary/Dropbox/FA/output/twoDimensional/figures/png/",i,".pdf", sep=""), 
+    height = 7, 
+    width = 7,
+    units="in", 
+    res=300)
+  plot(twoDout, 
+       upper ="cond-add",
+       main= i)
+  dev.off()
+
+}
+```
+
+```{r QTL: read/write 2D results, eval=FALSE}
+
+# Set path to read the previous results
+twoD_path <- "/home/zachary/Dropbox/FA/output/twoDimensional/scans/"
+setwd(twoD_path)
+
+# Read in the files and coerce into a dataframe
+txt_files_ls = list.files(path=twoD_path, pattern="*.csv")
+txt_files_df <- lapply(txt_files_ls, function(x) {read.table(file = x, header = T, sep =",")})
+combined_df <- do.call("rbind", lapply(txt_files_df, as.data.frame))   
+combined_df <- merge(combined_df, colors, by.x="trait",by.y="Trait" )
+combined_df <- combined_df[order(combined_df$Order),]
+combined_df$trait <-as.character(combined_df$trait)
+# Write the dataframe
+write.csv(combined_df, file="/home/zachary/Dropbox/FA/output/twoDimensional/cleaned/TWO_D_RESULTS.csv", row.names = TRUE)
+
+
+```
+
+
+## MQM   
+```{r QTL: Run and save results, eval=FALSE}
+
+ for(i in traits) {
+
+
+# Det max QTL and penalties QTL using GWST 
+  penalties = read.csv(paste('/home/zachary/Dropbox/FA/output/twoDimensional/penalties/mqm_', i , '.csv', sep = ''))[c(3,6,1),2]
+  test <-scanone(PAR, pheno.col=i)
+  GWST <- penalties[1]
+  NoQTL <- length(summary(test)$lod[summary(test)$lod > GWST])
+  if (NoQTL == 0) {
+    NoQTL <- 1
+  } else {
+    NoQTL <- NoQTL
+  }
+  
+# Model and penalties
+  model <- ifelse(i == "FC" , "binary", "normal")
+  penalties = read.csv(paste('/home/zachary/Dropbox/FA/output/twoDimensional/penalties/mqm_', i , '.csv', sep = ''))[c(3,6,1),2]
+  
+# Run stepwiseqtl
+  STEPWISE <- stepwiseqtl(
+    PAR,
+    pheno.col = i,
+    max.qtl = NoQTL,
+    method = "hk",
+    model = model ,
+    refine.locations = TRUE,
+    incl.markers = TRUE,
+    penalties = penalties,
+    additive.only = FALSE,
+    scan.pairs = FALSE,
+    keeplodprofile = TRUE
+  )
+
+# If MQM dosen't find a QTL
+  if (attributes(STEPWISE)$pLOD == 0) {
+    print("NULL QTL MODEL")
+  } else {
+    
+  # Write down the QTL model: 
+  write.csv(attributes(STEPWISE)$formula, 
+            file= paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/modelformula/",
+                  i,
+                  ".csv",
+                  sep=""))
+    
+
+# Make individual plots plots; pdf and png
+pdf(paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/pdf/",i,".pdf", sep=""), height = 7, width = 7)
+  # Plot stepwiseqtl 
+  plotLodProfile(STEPWISE, 
+                 showallchr=TRUE,  
+                 xlab = NA, 
+                 ylab = NA, 
+                 main= i, 
+                 qtl.labels=FALSE)
+    abline(h = penalties[1],
+         col = "darkgrey",
+         lty = 2,
+         lwd = 2)
+  dev.off()
+  
+  png(paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/png/",i,".png", sep=""),
+      height = 7, 
+      width = 7, 
+      units="in", 
+      res=300)
+  plotLodProfile(STEPWISE, 
+                 showallchr=TRUE,  
+                 xlab = NA, 
+                 ylab = NA, 
+                 main= i, 
+                 qtl.labels=FALSE)
+  abline(h = penalties[1],
+         col = "darkgrey",
+         lty = 2,
+         lwd = 2)
+  dev.off()  
+############################
+# Calculate 95% BCIs
+  # How many QTLs?
+    NoQTL <- length(STEPWISE[2]$name)
+  # Loop over each QTL
+    test <- for (j in 1:NoQTL) {
+  # Calculate BCIs
+    bayesQTL <- bayesint(STEPWISE, qtl.index = j, prob = 0.95)
+    ci_low <- bayesQTL[1, 2]
+    ci_hi <- bayesQTL[3, 2]
+  # Name chromosome
+    chromosome <- as.numeric(as.character(bayesQTL[2, 1]))
+  # Count number of individuals in analysis
+    N_IND <- STEPWISE$n.ind
+  # Cacluate Percent Explained Variation
+    getPVE <- function(LOD, N) {
+      100 * (1 - 10 ^ (-(2 / N) * LOD))
+      }
+    POS <- bayesQTL[2,2]
+    bestMar <- trimws(as.matrix(find.flanking(PAR, chromosome,POS))[3])
+    LODmax <- bayesQTL[2, 3]
+    PVE <- getPVE(LODmax, N_IND)
+  # Assign a unique name to each QTL
+    qtlName <- paste(i,"_C0",chromosome,"@", round(POS,1),sep='')
+  # Calcualte marker effects
+    MarkerEffects <- effectplot(
+        PAR,
+        pheno.col = i,
+        mname1 = bestMar,
+        draw = FALSE
+      )
+  # 'Early Big' parent
+    AA <- MarkerEffects$Means[1]
+  # 'TO1000' parent
+    BB <- MarkerEffects$Means[2]
+    delta <- AA - BB
+  # Make a dataframe of all this shit
+    testQTLdata <- cbind(qtlName,
+            i,
+            chromosome ,
+            LODmax,
+            POS,
+            ci_low ,
+            ci_hi,
+            bestMar ,
+            PVE,
+            AA,
+            BB,
+            delta) 
+    
+    colnames(testQTLdata) <- c(
+        "name",
+        "trait",
+        "chr",
+        "lod",
+        "pos",
+        "ci_low",
+        "ci_high",
+        "bestMar",
+        "PVE",
+        "AA",
+        "BB",
+        "delta"
+      )
+    ############################
+    # Write the data
+    write.csv(testQTLdata, file=paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/MQM_BCI/",i,"_",j,".csv",sep=""))
+    }
+  }
+}
+
+``` 
+
+
+
+
+
+## Summary of MQM QTL
+
+```{r QTL: read/write MQM results, eval=FALSE}
+# Set path to read the previous results
+mqm_path <- "/home/zachary/Dropbox/FA/output/MQM/mqmResults/MQM_BCI"
+setwd(mqm_path)
+
+# Read in the files and coerce into a dataframe
+txt_files_ls = list.files(path=mqm_path, pattern="*.csv")
+txt_files_df <- lapply(txt_files_ls, function(x) {read.table(file = x, header = T, sep =",")})
+combined_df <- do.call("rbind", lapply(txt_files_df, as.data.frame))   
+p12qtls <- combined_df[,c(-1)]
+combined_df <- merge(combined_df, colors, by.x="trait", by.y="Trait")
+combined_df <- combined_df[order(combined_df$Order),]
+# Write the dataframe
+write.csv(combined_df[,c(-1)], file="/home/zachary/Dropbox/FA/output/MQM/mqmResults/QTL_RESULTS.csv", row.names = TRUE)
+
+
+```
+
+
+
+## Multiplot of MQM QTL
+
+```{r QTL: multiplots of QTL, eval=FALSE}
+#### LODprofiles
+dev.off()
+#pdf(paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/multiplot/lodProfile.pdf", sep=""), height = 8, width = 12)
+png(paste("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/multiplot/lodProfile.png", sep=""), height = 270, width = 180, res=300, units = "mm")
+par(mfcol=c(6,4), mar=c(2.5,2.5,1,1))
+
+for(i in as.character(colors$Trait)) {
+  
+# Det max QTL and penalties QTL using GWST 
+  penalties = read.csv(paste('/home/zachary/Dropbox/FA/output/twoDimensional/penalties/mqm_', i , '.csv', sep = ''))[c(3,6,1),2]
+  test <-scanone(PAR, pheno.col=i)
+  GWST <- penalties[1]
+  NoQTL <- length(summary(test)$lod[summary(test)$lod > GWST])
+  if (NoQTL == 0) {
+    NoQTL <- 1
+  } else {
+    NoQTL <- NoQTL
+  }
+  
+# Model and penalties
+  model <- ifelse(i == "FC" , "binary", "normal")
+  penalties = read.csv(paste('/home/zachary/Dropbox/FA/output/twoDimensional/penalties/mqm_', i , '.csv', sep = ''))[c(3,6,1),2]
+  
+# Run stepwiseqtl
+  STEPWISE <- stepwiseqtl(
+    PAR,
+    pheno.col = i,
+    max.qtl = NoQTL,
+    method = "hk",
+    model = model ,
+    refine.locations = TRUE,
+    incl.markers = TRUE,
+    penalties = penalties,
+    additive.only = FALSE,
+    scan.pairs = FALSE,
+    keeplodprofile = TRUE
+  )
+
+  if (attributes(STEPWISE)$pLOD > 0) {
+  # Plot stepwiseqtl 
+  plotLodProfile(STEPWISE, 
+                 showallchr=TRUE,  
+                 xlab = NA,
+                 alternate.chrid = TRUE,
+                 ylab = NA, 
+                 main= NULL, 
+                 qtl.labels=FALSE,
+                 col=paste(colors$Color[colors$Trait == i]),
+                 lwd=2)
+    abline(h = penalties[1],
+         col = "darkgrey",
+         lty = 2,
+         lwd = 2)
+    text(i, x=75, y=0.9*max(sapply(attr(STEPWISE, "lodprofile"), function(a) max(a[,3], na.rm = TRUE))), font=2, cex=1.5)
+  } else{
+    "null QTL model"
+  }
+}
+dev.off()
+
+
+
+# Drag data into rqtl2
+name <-deparse(substitute(data))
+data <- convert2cross2(PAR)
+
+assign(paste(name, sep = ""), data, envir = .GlobalEnv)
+# Make a map without pseudomarkers
+map_no_PSM <- data$gmap
+assign(paste(name, "map_no_PSM", sep = ""), map_no_PSM, envir = .GlobalEnv)
+map <- insert_pseudomarkers(data$gmap, step = 1, cores = 0)
+assign(paste(name, "map", sep = ""), map, envir = .GlobalEnv)
+
+
+
+# make dataframe for plot_peaks
+qtlplot <- cbind(p12qtls$chr,p12qtls$pos,as.numeric(p12qtls$trait),as.character(p12qtls$trait), p12qtls$ci_low,p12qtls$ci_high  )
+colnames(qtlplot) <- c("chr","pos","lodindex","lodcolumn","ci_lo","ci_hi")
+qtlplot <- as.data.frame(qtlplot,stringsAsFactors=FALSE)
+qtlplot$pos <- as.numeric(qtlplot$pos)
+qtlplot$lodindex <- as.numeric(qtlplot$lodindex)
+qtlplot$chr <- as.numeric(qtlplot$chr)
+qtlplot$ci_lo <- as.numeric(qtlplot$ci_lo)
+qtlplot$ci_hi <- as.numeric(qtlplot$ci_hi)
+qtlplot[,-4]
+# Merge in colors for trait classes:
+
+colors <- read.csv('/home/zachary/Dropbox/FA/data/cleaned_data/trait_colors.csv')
+qtlplot <- merge(qtlplot, colors, by.x="lodcolumn", by.y="Trait")
+qtlplot <- qtlplot[order(qtlplot$Order, qtlplot$chr),]
+qtlplot <- qtlplot[,-4]
+colnames(qtlplot)[colnames(qtlplot)=="Order"] <- "lodindex"
+
+
+#pdf("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/multiplot/Y1Y2.pdf",width=8, height=8) 
+png("/home/zachary/Dropbox/FA/output/MQM/mqmResults/LODplots/multiplot/Y1Y2.png", width=8, height=8,  units = "in", res=300)
+par(mar=c(2,2,2,2))
+plot_peaks(qtlplot, map=data$gmap, col=as.character(qtlplot$Color), lwd=5, bgcolor="gray90", altbgcolor="gray85", xlab="")
+
+#bgcolor="gray95", altbgcolor="gray75"
+dev.off()
+
+
+
+
+
+
+
+```
+# Gene Models...
+
+## Read the QTLs
+
+```{r GM:importing QTLs}
+# Read QTLs assigned from previous step
+p12qtls <- read.csv("/home/zachary/Dropbox/FA/output/MQM/mqmResults/QTL_RESULTS.csv")
+
+```
+
+## Import GFF3 File  
+```{r GM:importing GFF3, eval=FALSE}
+# Reading GFF3
+parkin_gff3 <- read.gff(file="/home/zachary/Dropbox/FA/data/raw_data/Annotation/Brassica_oleracea.v2.1.40.gff3", GFF3=TRUE)
+
+
+# Set regions 
+getRegion <- function(chr,start,end, type) {
+  parkin_gff3[
+    parkin_gff3$seqid == paste("C",chr,sep="") & 
+    parkin_gff3$start >start*1000000 & 
+    parkin_gff3$end < end*1000000 & 
+    parkin_gff3$type == type , ]
+  }
+
+# Set region key
+getRegionKey <- function(chr,start,end, type, keyword) {
+  partial <- parkin_gff3[
+    parkin_gff3$seqid == paste("C",chr,sep="") & 
+    parkin_gff3$start >start*1000000 & 
+    parkin_gff3$end < end*1000000 & 
+    parkin_gff3$type == type, ]
+  partial[grep(keyword,partial$attribute),]
+  }
+
+
+# Write the regions
+for(i in 1:dim(p12qtls)[1]) {
+  reg <-
+    getRegion(p12qtls$chr[i], p12qtls$ci_lo[i], p12qtls$ci_hi[i], "gene")
+  write.csv( reg,
+    file = paste("/home/zachary/Dropbox/FA/output/GenomicRegions/Coding/",
+      p12qtls$name[i],
+      ".csv",
+      sep = ""
+    )
+  )
+}
+
+# Write the keys
+for(i in 1:dim(p12qtls)[1]) {
+  reg <-
+    getRegionKey(p12qtls$chr[i], p12qtls$ci_lo[i], p12qtls$ci_hi[i], "gene", "TAIR")
+  write.csv(
+    reg,
+    file = paste("/home/zachary/Dropbox/FA/output/GenomicRegions/TAIR/",
+    p12qtls$name[i],
+    ".csv",
+    sep = ""
+    )
+  )
+}
+```
+
+```{r GM: Create summary stats, eval=FALSE}
+# Create blank vectors
+summaryNames <- vector()
+summaryDiff <- vector()
+summaryCoding <- vector()
+summaryTAIR <- vector()
+
+for (i in 1:dim(p12qtls)[1]) {
+  summaryNames[i] <- paste(p12qtls$name[i])
+  summaryCoding[i] <- dim(getRegion(p12qtls$chr[i], p12qtls$ci_lo[i], p12qtls$ci_hi[i], "gene"))[1]
+  summaryDiff[i] <- p12qtls$ci_hi[i] - p12qtls$ci_lo[i]
+  summaryTAIR[i] <- dim(
+    getRegionKey(
+      p12qtls$chr[i], 
+      p12qtls$ci_lo[i], 
+      p12qtls$ci_hi[i], 
+      "gene", 
+      "TAIR"))[1]
+}
+
+stats<- as.data.frame(cbind(summaryNames,summaryCoding,summaryTAIR, summaryDiff))  
+head(stats)
+
+# write summary stats 
+write.csv(stats,
+  "/home/zachary/Dropbox/FA/output/GenomicRegions/Summary/stats.csv",
+  row.names = FALSE)
+
+# merge with other qtl data
+
+mergeTable <- cbind(p12qtls,stats[,-1])
+
+write.csv(mergeTable, 
+  "/home/zachary/Dropbox/FA/output/MQM/QTLs.csv",
+  row.names = FALSE)
+
+# Note.. have to do some manual formatting in libreoffice, eg. rounding
+
+```
+## Matrix of Candidate Genes
+
+```{r GM: intersecting candidates with QTL.., eval=FALSE}
+
+candidates <- read.csv("/home/zachary/Dropbox/FA/output/GenomicRegions/GenesOfInterest/candidates.csv")
+
+# Set empty vectors to fill...
+names <- vector()
+candi <- vector()
+output <- vector()
+
+# Run loop for intersections
+for(j in 1:dim(candidates)[1]) {
+  cans <- candidates[j, ]
+  for (i in 1:dim(p12qtls)[1]) {
+    names[i] <- paste(p12qtls$name[i])
+    candi[i] <- ifelse(
+      #include a candidate if it's on the same chromosome and within the BCI...
+      as.numeric(p12qtls$chr)[i] == cans$chr &
+        p12qtls$ci_lo[i] < cans$center & p12qtls$ci_hi[i] > cans$center,
+      round(p12qtls$pos[i] - cans$center, 2),
+      #also include a candidate if +/- 1.00 Mbp
+      ifelse(
+        as.numeric(p12qtls$chr)[i] == cans$chr &
+          abs(p12qtls$pos[i]) - abs(cans$center) < 2 &
+          abs(p12qtls$pos[i]) - abs(cans$center) > -2,
+        round(p12qtls$pos[i] - cans$center, 2),
+        "F"
+      )
+    )
+  }
+  output <- cbind(output, candi)
+}
+
+#colnames(output) <- paste(candidates[,1],"(",candidates[,2],")", sep="")
+colnames(output) <- candidates[,1]
+output <- rbind(as.character(candidates[,2]),output)
+rownames(output) <- paste(c("",as.character(p12qtls$name)))
+
+write.csv(t(output),"/home/zachary/Dropbox/FA/output/GenomicRegions/GenesOfInterest/geneMATRIX.csv" )
+```
+
